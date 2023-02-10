@@ -10,24 +10,21 @@
 #include <QString>
 #endif
 
-class UString:protected std::wstring
+class UString :protected std::wstring
 {
 	typedef std::wstring src_str;
+
+	constexpr static bool isSymbolForNumber(wchar_t c);
 public:
 	UString() = default;
-	constexpr UString(uint32_t size, wchar_t ch=L' '):src_str(size, ch) {}
-	constexpr UString(const wchar_t* str):src_str(str) {}
-	constexpr UString(const wchar_t* str,size_t count) : src_str(str,count) {}
-	constexpr UString(const wchar_t* startPtr, const wchar_t* endPtr) : src_str(startPtr, endPtr) {}
-	constexpr UString(std::wstring_view str):src_str(str){}
+	constexpr UString(uint32_t size, char ch = ' ') :src_str(size, ch) {}
+	constexpr UString(const char* str, size_t count);
+	constexpr UString(const char* startPtr, const char* endPtr) :
+		UString(startPtr, std::string_view(startPtr, endPtr).size()) {}
+	constexpr UString(const char* str) : UString(str, std::string_view(str).size()) {}
 
-	constexpr UString(const char* str) : UString(std::string_view(str)) {};
-	constexpr UString(const char* str, size_t count) : UString(std::string_view(str,count)) {}
-	constexpr UString(const char* startPtr, const char* endPtr) : UString(std::string_view(startPtr, endPtr)) {}
-	constexpr UString(std::string_view str);
-
-	constexpr UString(const UString& other):src_str(other) {}
-	constexpr UString(UString&& other)noexcept: src_str(other) {}
+	constexpr UString(const UString& other) : src_str(other) {}
+	constexpr UString(UString&& other)noexcept : src_str(other) {}
 
 	enum class CaseSens { Sensitive, Insensitive };
 
@@ -47,6 +44,7 @@ public:
 	using src_str::resize;
 	using src_str::shrink_to_fit;
 
+	using src_str::pop_back;
 	using src_str::clear;
 	using src_str::c_str;
 
@@ -61,65 +59,72 @@ public:
 
 	constexpr UString& operator=(UString&& val)noexcept { src_str::operator=(val); return *this; }
 	constexpr UString& operator=(const UString& val) { src_str::operator=(val); return *this; }
-	constexpr UString& operator=(const wchar_t* val) { src_str::operator=(val); return *this; }
-	constexpr UString& operator=(std::wstring_view val) { src_str::operator=(val); return *this; }
 	constexpr UString& operator=(const char* val) { src_str::operator=(UString(val)); return *this; }
-	constexpr UString& operator=(std::string_view val) { src_str::operator=(UString(val)); return *this; }
 
 	constexpr UString& operator+=(UString&& val) { src_str::operator+=(val); return *this; }
 	constexpr UString& operator+=(const UString& val) { src_str::operator+=(val); return *this; }
-	constexpr UString& operator+=(const wchar_t* val) { src_str::operator+=(val); return *this; }
-	constexpr UString& operator+=(std::wstring_view val) { src_str::operator+=(val); return *this; }
-	constexpr UString& operator+=(const char* val) { src_str::operator=(UString(val)); return *this; }
-	constexpr UString& operator+=(std::string_view val) { src_str::operator=(UString(val)); return *this; }
+	constexpr UString& operator+=(const char* val);
 
 	constexpr UString operator+(UString&& val) const {
 		UString str; str.reserve(size() + val.size()); str = *this; str += val; return str;
 	}
-	constexpr UString operator+(const UString& val) const{
+	constexpr UString operator+(const UString& val) const {
 		UString str; str.reserve(size() + val.size()); str = *this; str += val; return str;
 	}
-	constexpr UString operator+(const wchar_t* val) const { UString str(*this); str += val; return str;	}
-	constexpr UString operator+(std::wstring_view val) const { UString str(*this); str += val; return str;	}
-	constexpr UString operator+(const char* val) const { UString str(*this); str += val; return str;}
-	constexpr UString operator+(std::string_view val) const { UString str(*this); str += val; return str;	}
+	constexpr UString operator+(const char* val) const { UString str(*this); str += val; return str; }
 
+	constexpr bool operator==(UString&& val) const noexcept;
+	constexpr bool operator!=(UString&& val) const noexcept { return !operator==(val); }
 	constexpr bool operator==(const UString& val) const noexcept { return *((src_str*)this) == *((src_str*)&val); }
 	constexpr bool operator!=(const UString& val)const noexcept { return !operator==(val); }
 
-	constexpr bool operator==(const wchar_t* val) const noexcept { return *((src_str*)this) == val; }
-	constexpr bool operator!=(const wchar_t* val)const noexcept { return !operator==(val); }
-
-	constexpr bool operator==(std::wstring_view val) const noexcept { return *((src_str*)this) == val; }
-	constexpr bool operator!=(std::wstring_view val)const noexcept { return !operator==(val); }
-
-	constexpr bool operator==(const char* val) const noexcept { return *this == std::string_view(val); }
+	constexpr bool operator==(const char* val) const noexcept;
 	constexpr bool operator!=(const char* val)const noexcept { return !operator==(val); }
 
-	constexpr bool operator==(std::string_view val) const noexcept;
-	constexpr bool operator!=(std::string_view val)const noexcept { return !operator==(val); }
-
-	constexpr size_t find(const UString& str, size_t off=0)const { return src_str::find(str, off); }
-	constexpr size_t rfind(const UString& str, size_t off=0)const { return src_str::rfind(str, off); }
+	constexpr void pop_front() { src_str::erase(0, 1); }
+	constexpr size_t find(const UString& str, size_t off = 0)const noexcept{ return src_str::find(str, off); }
+	constexpr size_t rfind(const UString& str, size_t off = 0)const noexcept { return src_str::rfind(str, off); }
 	constexpr UString substr(size_t off, size_t count)const;
-	constexpr std::vector<UString> split(const UString& separator, CaseSens mode = CaseSens::Sensitive, bool saveEmpty=true)const;
+	constexpr std::vector<UString> split(const UString& separator, CaseSens mode = CaseSens::Sensitive, bool saveEmpty = true)const;
+	constexpr void insert(size_t offset, const char* str);
+	constexpr void insert(size_t offset, const UString& str);
+	constexpr void insert(size_t offset, UString&& str);
 
-	void convertToUpper();
-	void convertToLower();
+	constexpr bool starts_with(const UString& val, CaseSens mode = CaseSens::Sensitive)const noexcept;
+	constexpr bool starts_with(const char* valPtr, CaseSens mode = CaseSens::Sensitive)const noexcept;
+	constexpr bool ends_with(const UString& val, CaseSens mode = CaseSens::Sensitive)const noexcept;
+	constexpr bool ends_with(const char* valPtr, CaseSens mode = CaseSens::Sensitive)const noexcept;
 
-	UString toUpper()const;
-	UString toLower()const;
+	constexpr bool contains(const UString& str)const noexcept { return src_str::find(str) != npos; }
+
+
+	void convert_to_upper();
+	void convert_to_lower();
+
+	UString to_upper()const;
+	UString to_lower()const;
+
+	bool is_lower()const;
+	bool is_upper()const;
+
 
 	template <class T>
-	T toNumber(bool* done = nullptr) const;
-	//copy if wchar_t >= 0 && wchar_t <= max_char only
-	std::string toLatin()const;
+	static T toNumberStatic(std::string_view str,size_t startOff,size_t count=SIZE_MAX, bool* done = nullptr);
+	template <class T>
+	static T toNumberStatic(std::string_view str, bool* done = nullptr) { return toNumberStatic<T>(str,0,str.size(), done); }
+	template <class T>
+	static T toNumberStatic(const char* str, bool* done = nullptr) { return toNumberStatic<T>(std::string_view(str), done); }
+	template <class T>
+	T toNumber(bool* done = nullptr) const { return toNumber<T>(0, size(), done); }
+	template <class T>
+	T toNumber(size_t startOff, size_t count = SIZE_MAX, bool* done = nullptr) const;
+	constexpr std::string toLatin()const;
 	std::string toString(const std::locale& locale = std::locale(), char _default='-')const;
 	std::string toStringUtf8()const;
 	std::u8string toUtf8()const;
 	std::u16string toUtf16()const;
 	std::u32string toUtf32()const;
-	std::wstring toWString()const;
+	constexpr const std::wstring& toWString()const { return *this; }
 #ifdef QT_CORE_LIB
 	QString toQString()const { return QString::fromStdWString(*this); }
 #endif
@@ -129,57 +134,139 @@ public:
 	template <class T>
 	static UString fromFloatingPoint(T num, std::chars_format format = std::chars_format::general);
 	static UString fromString(std::string_view str, const std::locale& locale = std::locale());
-	//copy if char >= 0
-	constexpr static UString fromLatin(std::string_view str) { return UString(str); }
+	constexpr static UString fromLatin(std::string_view str);
 	static UString fromUtf8(std::string_view str);
 	static UString fromUtf8(std::u8string_view str);
 	static UString fromUtf16(std::u16string_view str);
 	static UString fromUtf32(std::u32string_view str);
-	static UString fromWString(std::wstring_view str);
+	constexpr static UString fromWString(std::wstring_view str);
 #ifdef QT_CORE_LIB
-	static UString fromQString(const QString& str) { return UString(str.toStdWString()); }
+	static UString fromQString(const QString& str) { return UString::fromWString(str.toStdWString()); }
 #endif
 
 
 	static bool compare(const UString& str0, const UString& str1, CaseSens caseSence = CaseSens::Sensitive) noexcept;
 };
 
-constexpr UString::UString(std::string_view str)
+
+constexpr bool UString::isSymbolForNumber(wchar_t c)
 {
-	resize(str.size());
-	auto auxilPtr = str.data();
-	auto auxilWPtr = data();
-	for (size_t i = 0, end = size(); i < end; i++, auxilPtr++)
-		if ((*auxilPtr) >= 0)
-		{
-			*auxilWPtr = *auxilPtr;
-			++auxilWPtr;
-		}
-		else
-			pop_back();
+	return (c > 43 && c < 58) || c == 'e' || c == 'E';
 }
 
-template<class T>
-inline T UString::toNumber(bool* done) const
+constexpr UString::UString(const char* str,size_t count)
 {
-	T resNum=0;
-	std::string tmpStr(this->size(),' ');
+	resize(count);
 
-	uint32_t countSymb = 0;
-	for (auto& i : *this)
+	for (auto currentPtr = data(), end = currentPtr + count; currentPtr < end; ++str, ++currentPtr)
 	{
-		if (i < 102 && i > 43)
+		*currentPtr = *str;
+	}
+}
+
+
+template <class T>
+inline T UString::toNumberStatic(std::string_view str, size_t startOff, size_t count, bool* done)
+{
+	if (count== SIZE_MAX)
+	{
+		if (startOff >= str.size())
 		{
-			tmpStr[countSymb] = i;
+			if (done)
+				done = false;
+			return 0;
+		}
+		else
+			count = str.size() - startOff;
+	}
+	else if (startOff + count > str.size())
+	{
+		if (done)
+			done = false;
+		return 0;
+	}
+
+	constexpr const int sizeBuf = 30;
+	T resNum = 0;
+	char tmpStr[sizeBuf]{};
+
+	uint8_t countSymb = 0;
+	for (auto ptr = str.data()+ startOff, end = ptr + count; ptr < end; ptr++)
+	{
+		if (isSymbolForNumber(*ptr))
+		{
+			tmpStr[countSymb] = *ptr;
 			++countSymb;
+			if (countSymb >= sizeBuf)
+			{
+				if (done)
+				{
+					done = false;
+					return resNum;
+				}
+			}
 		}
 	}
-	auto ptr = tmpStr.data();
-	auto res = std::from_chars(ptr, ptr+ countSymb, resNum);
+
+	auto res = std::from_chars(tmpStr, tmpStr + countSymb, resNum);
 
 	if (done)
 	{
-		*done = res.ec==std::errc(0);
+		*done = res.ec == std::errc(0);
+	}
+
+	return resNum;
+}
+
+
+template<class T>
+inline T UString::toNumber(size_t startOff, size_t count, bool* done) const
+{
+	if (count == SIZE_MAX)
+	{
+		if (startOff >= size())
+		{
+			if (done)
+				done = false;
+			return 0;
+		}
+		else
+			count = size() - startOff;
+	}
+	else if (startOff+ count > size())
+	{
+		if (done)
+			done = false;
+		return 0;
+	}
+
+	constexpr const int sizeBuf = 30;
+	T resNum = 0;
+	char tmpStr[sizeBuf]{};
+
+	uint8_t countSymb = 0;
+	for (auto ptr = data() + startOff, end = ptr + count; ptr < end; ptr++)
+	{
+		if (isSymbolForNumber(*ptr))
+		{
+			tmpStr[countSymb] = *ptr;
+			++countSymb;
+			if (countSymb >= sizeBuf)
+			{
+				if (done)
+				{
+					done = false;
+					return resNum;
+				}
+			}
+		}
+	}
+
+	auto res = std::from_chars(tmpStr, tmpStr + countSymb, resNum);
+
+	if (done)
+	{
+		*done = res.ec == std::errc(0);
 	}
 
 	return resNum;
@@ -204,7 +291,7 @@ inline UString UString::fromFloatingPoint(T num, std::chars_format format)
 
 constexpr UString UString::substr(size_t off, size_t count)const
 {
-	return UString(src_str::substr(off, count));
+	return UString::fromWString(src_str::substr(off, count));
 }
 
 
@@ -225,7 +312,7 @@ constexpr std::vector<UString> UString::split(const UString& separator, CaseSens
 
 			auto s = pos - oldPos;
 			if (s|| saveEmpty)
-				res.emplace_back(std::wstring_view(data() + oldPos, s));
+				res.emplace_back(fromWString(std::wstring_view(data() + oldPos, s)));
 
 			if (npos - pos >= sizeSep)
 			{
@@ -237,7 +324,7 @@ constexpr std::vector<UString> UString::split(const UString& separator, CaseSens
 	}
 	else
 	{
-		const auto auxilSep = separator.toLower();
+		const auto auxilSep = separator.to_lower();
 		const auto otherPtr = auxilSep.data();
 		const auto endOtherPtr = otherPtr+ sizeSep;
 		const auto currentEndPtr = data() + currentSize;
@@ -262,7 +349,7 @@ constexpr std::vector<UString> UString::split(const UString& separator, CaseSens
 			
 			auto s = pos - oldPos;
 			if (s || saveEmpty)
-				res.emplace_back(std::wstring_view(data() + oldPos, s));
+				res.emplace_back(fromWString(std::wstring_view(data() + oldPos, s)));
 
 			if (npos - pos >= sizeSep)
 			{
@@ -275,44 +362,200 @@ constexpr std::vector<UString> UString::split(const UString& separator, CaseSens
 	return res;
 }
 
-
-inline void UString::convertToUpper()
+constexpr void UString::insert(size_t ind, const char* str)
 {
-	auto& ctype = std::use_facet<std::ctype<wchar_t>>(std::locale::classic());
-	std::transform(begin(), end(), begin(), [&](auto c) {return ctype.toupper(c); });
+	src_str::insert(ind, UString(str));
 }
 
-inline void UString::convertToLower()
+constexpr void UString::insert(size_t ind, const UString& str)
 {
-	auto& ctype = std::use_facet<std::ctype<wchar_t>>(std::locale::classic());
-	std::transform(begin(), end(), begin(), [&](auto c) {return ctype.tolower(c); });
+	src_str::insert(ind, str);
 }
 
-inline UString UString::toUpper() const
+constexpr void UString::insert(size_t ind, UString&& str)
+{
+	src_str::insert(ind, str);
+}
+
+constexpr bool UString::starts_with(const UString& val, CaseSens mode)const noexcept
+{
+	if (mode== CaseSens::Sensitive)
+	{
+		return src_str::starts_with(val);
+	}
+	else if(size()>=val.size())
+	{
+		auto& ctype = std::use_facet<std::ctype<wchar_t>>(std::locale::classic());
+
+		for (auto currentPtr = data(), otherPtr = val.data(), end = otherPtr + val.size();
+			otherPtr < end; ++otherPtr, ++currentPtr)
+		{
+			if (ctype.tolower(*currentPtr) != ctype.tolower(*otherPtr))
+				return false;
+		}
+		return true;
+	}
+
+	return false;
+}
+
+constexpr bool UString::starts_with(const char* valPtr, CaseSens mode)const noexcept
+{
+	std::string_view val(valPtr);
+	if (size() < val.size())
+		return false;
+
+	auto currentPtr = data();
+	auto otherPtr = val.data();
+	auto end = otherPtr + val.size();
+
+	if (mode == CaseSens::Sensitive)
+	{
+		for (; otherPtr < end; ++otherPtr, ++currentPtr)
+		{
+			if (*currentPtr != *otherPtr)
+				return false;
+		}
+	}
+	else
+	{
+		auto& ctype = std::use_facet<std::ctype<wchar_t>>(std::locale::classic());
+
+		for (;otherPtr < end; ++otherPtr, ++currentPtr)
+		{
+			if (ctype.tolower(*currentPtr) != ctype.tolower(*otherPtr))
+				return false;
+		}
+	}
+	return true;
+}
+
+constexpr bool UString::ends_with(const UString& val, CaseSens mode)const noexcept
+{
+	if (mode == CaseSens::Sensitive)
+	{
+		return src_str::ends_with(val);
+	}
+	else if (size() >= val.size())
+	{
+		auto& ctype = std::use_facet<std::ctype<wchar_t>>(std::locale::classic());
+		auto sizeVal = val.size();
+
+		for (auto currentPtr = data() + size() - sizeVal, otherPtr = val.data(), end = otherPtr + sizeVal;
+			otherPtr < end; ++otherPtr, ++currentPtr)
+		{
+			if (ctype.tolower(*currentPtr) != ctype.tolower(*otherPtr))
+				return false;
+		}
+		return true;
+	}
+
+	return false;
+}
+
+constexpr bool UString::ends_with(const char* valPtr, CaseSens mode)const noexcept
+{
+	std::string_view val(valPtr);
+	auto otherSize = val.size();
+	if (size() < otherSize)
+		return false;
+
+	auto currentPtr = data()+size()- otherSize;
+	auto otherPtr = val.data();
+	auto end = otherPtr + otherSize;
+
+	if (mode == CaseSens::Sensitive)
+	{
+		for (; otherPtr < end; ++otherPtr, ++currentPtr)
+		{
+			if (*currentPtr != *otherPtr)
+				return false;
+		}
+	}
+	else
+	{
+		auto& ctype = std::use_facet<std::ctype<wchar_t>>(std::locale::classic());
+
+		for (; otherPtr < end; ++otherPtr, ++currentPtr)
+		{
+			if (ctype.tolower(*currentPtr) != ctype.tolower(*otherPtr))
+				return false;
+		}
+	}
+	return true;
+}
+
+constexpr UString& UString::operator+=(const char* val)
+{
+	std::string_view strView(val);
+	auto oldSize = size();
+	resize(oldSize + strView.size());
+
+	for (auto i = data() + oldSize, end = i + strView.size(); i < end; ++i, ++val)
+		*i = *val;
+
+	return *this;
+}
+
+inline void UString::convert_to_upper()
+{
+	auto& ctype = std::use_facet<std::ctype<wchar_t>>(std::locale::classic());
+	for (auto& i : *this)
+		i = ctype.toupper(i);
+}
+
+inline void UString::convert_to_lower()
+{
+	auto& ctype = std::use_facet<std::ctype<wchar_t>>(std::locale::classic());
+	for (auto& i : *this)
+		i = ctype.tolower(i);
+}
+
+inline UString UString::to_upper() const
 {
 	UString res(*this);
-	res.convertToUpper();
+	res.convert_to_upper();
 	return res;
 }
 
-inline UString UString::toLower() const
+inline UString UString::to_lower() const
 {
 	UString res(*this);
-	res.convertToLower();
+	res.convert_to_lower();
 	return res;
 }
 
-inline std::string UString::toLatin() const
+inline bool UString::is_lower()const
+{
+	auto& ctype = std::use_facet<std::ctype<wchar_t>>(std::locale::classic());
+	for (auto& i : *this)
+		if (i != ctype.tolower(i))
+			return false;
+	return true;
+}
+
+inline bool UString::is_upper()const
+{
+	auto& ctype = std::use_facet<std::ctype<wchar_t>>(std::locale::classic());
+	for (auto& i : *this)
+		if (i != ctype.toupper(i))
+			return false;
+	return true;
+}
+
+constexpr std::string UString::toLatin() const
 {
 	std::string res(size(), 0);
 	auto resPtr = res.data();
 	for (auto i = data(), end = i + size(); i < end; i++)
 	{
-		if (*i >= 0 && *i <= std::numeric_limits<char>::max())
+		if (*i >= '\a' && *i <= std::numeric_limits<char>::max())
 		{
 			*resPtr = *i;
 			++resPtr;
 		}
+		else
+			res.pop_back();
 	}
 	return res;
 }
@@ -383,10 +626,6 @@ inline std::u32string UString::toUtf32() const
 	}
 }
 
-inline std::wstring UString::toWString() const
-{
-	return *this;
-}
 
 inline bool UString::compare(const UString& str0, const UString& str1, CaseSens mode) noexcept
 {
@@ -417,26 +656,48 @@ inline bool UString::compare(const UString& str0, const UString& str1, CaseSens 
 
 inline UString UString::fromString(std::string_view str, const std::locale& locale)
 {
-	//https://www.codeproject.com/Tips/196097/Converting-ANSI-to-Unicode-and-back
-		//return String(std::filesystem::_Convert_narrow_to_wide(__std_fs_code_page(), str).c_str());
+	////https://www.codeproject.com/Tips/196097/Converting-ANSI-to-Unicode-and-back
+	//	//return String(std::filesystem::_Convert_narrow_to_wide(__std_fs_code_page(), str).c_str());
+	//
+	//auto _size = str.size();
+	//auto ptr = str.data();
+	//UString res(_size, 0);
+	//
+	//std::use_facet<std::ctype<wchar_t> >(locale).widen(ptr, ptr + _size, res.data());
+	//
+	//auto pos = res.find(wchar_t(0), 0);
+	//if (pos != res.npos)
+	//	res.resize(pos);
+	//
+	//std::filesystem::_Convert_stringoid_with_locale_to_wide(str, locale)
 
-	auto _size = str.size();
-	auto ptr = str.data();
-	UString res(_size, 0);
+	return fromWString(std::filesystem::_Convert_stringoid_with_locale_to_wide(str, locale));
+}
 
-	std::use_facet<std::ctype<wchar_t> >(locale).widen(ptr, ptr + _size, res.data());
-
-	auto pos = res.find(wchar_t(0), 0);
-	if (pos != res.npos)
-		res.resize(pos);
+constexpr UString UString::fromLatin(std::string_view str)
+{
+	UString res(str.size());
+	auto currentPtr = res.data();
+	
+	for (auto otherPtr = str.data(),end= otherPtr+str.size(); otherPtr < end; ++otherPtr)
+	{
+		if (*currentPtr < '\a' )
+		{
+			res.pop_back();
+		}
+		else
+		{
+			*currentPtr = *otherPtr;
+			++currentPtr;
+		}
+	}
 
 	return res;
 }
 
-
 inline UString UString::fromUtf8(std::string_view str)
 {
-	return UString(std::filesystem::_Convert_narrow_to_wide(__std_code_page::_Utf8, str).c_str());
+	return fromWString(std::filesystem::_Convert_narrow_to_wide(__std_code_page::_Utf8, str));
 }
 
 inline UString UString::fromUtf8(std::u8string_view str)
@@ -447,39 +708,63 @@ inline UString UString::fromUtf8(std::u8string_view str)
 inline UString UString::fromUtf16(std::u16string_view str)
 {
 	if constexpr (sizeof(wchar_t) == sizeof(char16_t))
-	{
-		auto startPtr = (const wchar_t*)str.data();
-		return UString(startPtr, startPtr+str.size());
-	}
+		return fromWString(std::wstring_view((const wchar_t*)str.data(), str.size()));
 	else
-		return UString(std::filesystem::_Convert_stringoid_to_wide(str, std::filesystem::_Normal_conversion{}).c_str());
+		return fromWString(std::filesystem::_Convert_stringoid_to_wide(str,
+			std::filesystem::_Normal_conversion{}));
 }
 
 inline UString UString::fromUtf32(std::u32string_view str)
 {
 	if constexpr (sizeof(wchar_t) == sizeof(char32_t))
-	{
-		auto startPtr = (const wchar_t*)str.data();
-		return UString(startPtr, str.size());
-	}
+		return fromWString(std::wstring_view((const wchar_t*)str.data(), str.size()));
 	else
-		return UString(std::filesystem::_Convert_stringoid_to_wide(str,
-			std::filesystem::_Normal_conversion{}).c_str());
+		return fromWString(std::filesystem::_Convert_stringoid_to_wide(str,
+			std::filesystem::_Normal_conversion{}));
 }
 
-inline UString UString::fromWString(std::wstring_view str)
+constexpr UString UString::fromWString(std::wstring_view str)
 {
-	return UString(str.data());
+	UString res;
+	res.src_str::operator=(str);
+	return res;
 }
 
-constexpr bool UString::operator==(std::string_view val) const noexcept
+constexpr bool UString::operator==(const char* val) const noexcept
 {
-	if (size() != val.size())
+	std::string_view view(val);
+	if (size() != view.size())
 		return false;
 	auto wptr = data();
-	auto ptr = val.data();
-	for (auto end = ptr + size(); ptr < end; ++wptr, ++ptr)
-		if (*wptr != *ptr)
+
+	for (auto end = val + size(); val < end; ++wptr, ++val)
+		if (*wptr != *val)
 			return false;
 	return true;
 }
+
+
+constexpr UString operator+(const char* str0,const UString& str1) {
+	std::string_view strV(str0);
+
+	UString res(strV.size() + str1.size());
+	auto currentPtr = res.data();
+	auto otherPtr = str1.data();
+
+	for (auto end = currentPtr + strV.size(); currentPtr < end; ++currentPtr, ++str0)
+	{
+		*currentPtr = *str0;
+	}
+
+	for (auto end = currentPtr + str1.size(); currentPtr < end; ++currentPtr,++otherPtr)
+	{
+		*currentPtr = *otherPtr;
+	}
+
+	return res;
+}
+
+constexpr bool operator==(const char* str0, const UString& str1)noexcept {return str1==str0;}
+constexpr bool operator!=(const char* str0, const UString& str1)noexcept { return str1 != str0; }
+constexpr bool operator==(const char* str0, UString&& str1)noexcept { return str1 == str0; }
+constexpr bool operator!=(const char* str0, UString&& str1)noexcept { return str1 != str0; }
