@@ -14,6 +14,8 @@ class UString :protected std::wstring
 {
 	typedef std::wstring src_str;
 
+	static const std::ctype<wchar_t>& ctype;
+
 	constexpr static bool isSymbolForNumber(wchar_t c);
 public:
 	UString() = default;
@@ -153,6 +155,8 @@ public:
 
 	static bool compare(const UString& str0, const UString& str1, CaseSens caseSence = CaseSens::Sensitive) noexcept;
 };
+
+const std::ctype<wchar_t>& UString::ctype = std::use_facet<std::ctype<wchar_t>>(std::locale::classic());
 
 constexpr UString::UString(const char* str,size_t count)
 {
@@ -312,8 +316,6 @@ constexpr size_t UString::find(const UString& str, size_t off, CaseSens mode)con
 	}
 	else if (str.size() <=size() - off)
 	{
-		auto& ctype = std::use_facet<std::ctype<wchar_t>>(std::locale::classic());
-
 		auto srcPtr = data() + off;
 		const auto srcEnd = srcPtr + size() - off - str.size() + 1;
 		const auto otherPtr = str.data();
@@ -384,9 +386,6 @@ constexpr std::vector<UString> UString::split(const UString& separator, CaseSens
 		const auto endOtherPtr = otherPtr+ sizeSep;
 		const auto currentEndPtr = data() + currentSize;
 
-
-		auto& ctype = std::use_facet<std::ctype<wchar_t>>(std::locale::classic());
-
 		while (pos <= currentSize)
 		{
 			oldPos = pos;
@@ -440,8 +439,6 @@ constexpr bool UString::starts_with(const UString& val, CaseSens mode)const noex
 	}
 	else if(size()>=val.size())
 	{
-		auto& ctype = std::use_facet<std::ctype<wchar_t>>(std::locale::classic());
-
 		for (auto currentPtr = data(), otherPtr = val.data(), end = otherPtr + val.size();
 			otherPtr < end; ++otherPtr, ++currentPtr)
 		{
@@ -474,8 +471,6 @@ constexpr bool UString::starts_with(const char* valPtr, CaseSens mode)const noex
 	}
 	else
 	{
-		auto& ctype = std::use_facet<std::ctype<wchar_t>>(std::locale::classic());
-
 		for (;otherPtr < end; ++otherPtr, ++currentPtr)
 		{
 			if (ctype.tolower(*currentPtr) != ctype.tolower(*otherPtr))
@@ -493,7 +488,6 @@ constexpr bool UString::ends_with(const UString& val, CaseSens mode)const noexce
 	}
 	else if (size() >= val.size())
 	{
-		auto& ctype = std::use_facet<std::ctype<wchar_t>>(std::locale::classic());
 		auto sizeVal = val.size();
 
 		for (auto currentPtr = data() + size() - sizeVal, otherPtr = val.data(), end = otherPtr + sizeVal;
@@ -529,8 +523,6 @@ constexpr bool UString::ends_with(const char* valPtr, CaseSens mode)const noexce
 	}
 	else
 	{
-		auto& ctype = std::use_facet<std::ctype<wchar_t>>(std::locale::classic());
-
 		for (; otherPtr < end; ++otherPtr, ++currentPtr)
 		{
 			if (ctype.tolower(*currentPtr) != ctype.tolower(*otherPtr))
@@ -616,14 +608,12 @@ constexpr UString& UString::operator+=(const char* val)
 
 inline void UString::convert_to_upper()
 {
-	auto& ctype = std::use_facet<std::ctype<wchar_t>>(std::locale::classic());
 	for (auto& i : *this)
 		i = ctype.toupper(i);
 }
 
 inline void UString::convert_to_lower()
 {
-	auto& ctype = std::use_facet<std::ctype<wchar_t>>(std::locale::classic());
 	for (auto& i : *this)
 		i = ctype.tolower(i);
 }
@@ -644,7 +634,6 @@ inline UString UString::to_lower() const
 
 inline bool UString::is_lower()const
 {
-	auto& ctype = std::use_facet<std::ctype<wchar_t>>(std::locale::classic());
 	for (auto& i : *this)
 		if (i != ctype.tolower(i))
 			return false;
@@ -653,7 +642,6 @@ inline bool UString::is_lower()const
 
 inline bool UString::is_upper()const
 {
-	auto& ctype = std::use_facet<std::ctype<wchar_t>>(std::locale::classic());
 	for (auto& i : *this)
 		if (i != ctype.toupper(i))
 			return false;
@@ -756,7 +744,6 @@ inline bool UString::compare(const UString& str0, const UString& str1, CaseSens 
 			return false;
 		else
 		{
-			auto& ctype = std::use_facet<std::ctype<wchar_t>>(std::locale::classic());
 			for (auto ptr0 = str0.data(), ptr1 = str1.data(), end = ptr0 + str0.size();
 				ptr0 < end; ++ptr0, ++ptr1)
 				if (ctype.tolower(*ptr0) != ctype.tolower(*ptr1))
