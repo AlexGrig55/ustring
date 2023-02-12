@@ -24,7 +24,7 @@ public:
 	constexpr UString(const char* str) : UString(str, std::string_view(str).size()) {}
 
 	constexpr UString(const UString& other) : src_str(other) {}
-	constexpr UString(UString&& other)noexcept : src_str(other) {}
+	constexpr UString(UString&& other)noexcept : src_str(std::move(other)) {}
 
 	enum class CaseSens { Sensitive, Insensitive };
 
@@ -54,14 +54,12 @@ public:
 	using src_str::erase;
 
 	using src_str::npos;
-	using src_str::find;
-	using src_str::rfind;
 
-	constexpr UString& operator=(UString&& val)noexcept { src_str::operator=(val); return *this; }
+	constexpr UString& operator=(UString&& val)noexcept { src_str::operator=(std::move(val)); return *this; }
 	constexpr UString& operator=(const UString& val) { src_str::operator=(val); return *this; }
 	constexpr UString& operator=(const char* val) { src_str::operator=(UString(val)); return *this; }
 
-	constexpr UString& operator+=(UString&& val) { src_str::operator+=(val); return *this; }
+	constexpr UString& operator+=(UString&& val) { src_str::operator+=(std::move(val)); return *this; }
 	constexpr UString& operator+=(const UString& val) { src_str::operator+=(val); return *this; }
 	constexpr UString& operator+=(const char* val);
 
@@ -74,7 +72,7 @@ public:
 	constexpr UString operator+(const char* val) const { UString str(*this); str += val; return str; }
 
 	constexpr bool operator==(UString&& val) const noexcept;
-	constexpr bool operator!=(UString&& val) const noexcept { return !operator==(val); }
+	constexpr bool operator!=(UString&& val) const noexcept { return !operator==(std::move(val)); }
 	constexpr bool operator==(const UString& val) const noexcept { return *((src_str*)this) == *((src_str*)&val); }
 	constexpr bool operator!=(const UString& val)const noexcept { return !operator==(val); }
 
@@ -82,8 +80,7 @@ public:
 	constexpr bool operator!=(const char* val)const noexcept { return !operator==(val); }
 
 	constexpr void pop_front() { src_str::erase(0, 1); }
-	constexpr size_t find(const UString& str, size_t off = 0)const noexcept{ return src_str::find(str, off); }
-	constexpr size_t rfind(const UString& str, size_t off = 0)const noexcept { return src_str::rfind(str, off); }
+	constexpr size_t find(const UString& str, size_t off = 0, CaseSens mode = CaseSens::Sensitive)const noexcept;
 	constexpr UString substr(size_t off, size_t count)const;
 	constexpr std::vector<UString> split(const UString& separator, CaseSens mode = CaseSens::Sensitive, bool saveEmpty = true)const;
 	constexpr void insert(size_t offset, const char* str);
@@ -95,8 +92,11 @@ public:
 	constexpr bool ends_with(const UString& val, CaseSens mode = CaseSens::Sensitive)const noexcept;
 	constexpr bool ends_with(const char* valPtr, CaseSens mode = CaseSens::Sensitive)const noexcept;
 
-	constexpr bool contains(const UString& str)const noexcept { return src_str::find(str) != npos; }
+	constexpr bool contains(const UString& str, CaseSens mode = CaseSens::Sensitive)const noexcept { return find(str,0,mode) != npos; }
 
+	constexpr size_t count(const UString& subStr, CaseSens mode = CaseSens::Sensitive)const noexcept;
+
+	constexpr size_t replace(const UString& before, const UString& after, CaseSens mode = CaseSens::Sensitive);
 
 	void convert_to_upper();
 	void convert_to_lower();
@@ -107,17 +107,21 @@ public:
 	bool is_lower()const;
 	bool is_upper()const;
 
+	
+	template <class T>
+	std::enable_if_t<std::is_integral<T>::value, T> 
+		toIntegral(uint8_t base=10,bool* done = nullptr) const { return toIntegral<T>(0, size(),base, done); }
+	template <class T>
+	std::enable_if_t<std::is_integral<T>::value, T>
+		toIntegral(size_t startOff, size_t count, uint8_t base = 10, bool* done = nullptr) const;
 
 	template <class T>
-	static T toNumberStatic(std::string_view str,size_t startOff,size_t count=SIZE_MAX, bool* done = nullptr);
+	std::enable_if_t<std::is_floating_point<T>::value, T>
+		toFloatingPoint(bool* done = nullptr) const { return toFloatingPoint<T>(0, size(), done); }
 	template <class T>
-	static T toNumberStatic(std::string_view str, bool* done = nullptr) { return toNumberStatic<T>(str,0,str.size(), done); }
-	template <class T>
-	static T toNumberStatic(const char* str, bool* done = nullptr) { return toNumberStatic<T>(std::string_view(str), done); }
-	template <class T>
-	T toNumber(bool* done = nullptr) const { return toNumber<T>(0, size(), done); }
-	template <class T>
-	T toNumber(size_t startOff, size_t count = SIZE_MAX, bool* done = nullptr) const;
+	std::enable_if_t<std::is_floating_point<T>::value, T>
+		toFloatingPoint(size_t startOff, size_t count, bool* done = nullptr) const;
+
 	constexpr std::string toLatin()const;
 	std::string toString(const std::locale& locale = std::locale(), char _default='-')const;
 	std::string toStringUtf8()const;
@@ -130,9 +134,12 @@ public:
 #endif
 
 	template <class T>
-	static UString fromIntegral(T num, int base = 10);
+	static std::enable_if_t<std::is_integral<T>::value, UString> fromIntegral(T num, int base = 10);
+	//format: 'g'- general; 'f' - fixed; 's' - scientific; 'h' - hex
+	//if precision < 0: auto precision
 	template <class T>
-	static UString fromFloatingPoint(T num, std::chars_format format = std::chars_format::general);
+	static std::enable_if_t<std::is_floating_point<T>::value, UString> 
+		fromFloatingPoint(T num, uint8_t format = 'g', int8_t precision = -1);
 	static UString fromString(std::string_view str, const std::locale& locale = std::locale());
 	constexpr static UString fromLatin(std::string_view str);
 	static UString fromUtf8(std::string_view str);
@@ -144,15 +151,8 @@ public:
 	static UString fromQString(const QString& str) { return UString::fromWString(str.toStdWString()); }
 #endif
 
-
 	static bool compare(const UString& str0, const UString& str1, CaseSens caseSence = CaseSens::Sensitive) noexcept;
 };
-
-
-constexpr bool UString::isSymbolForNumber(wchar_t c)
-{
-	return (c > 43 && c < 58) || c == 'e' || c == 'E';
-}
 
 constexpr UString::UString(const char* str,size_t count)
 {
@@ -164,81 +164,25 @@ constexpr UString::UString(const char* str,size_t count)
 	}
 }
 
-
-template <class T>
-inline T UString::toNumberStatic(std::string_view str, size_t startOff, size_t count, bool* done)
+constexpr bool isValidSymbolForNum(wchar_t c)
 {
-	if (count== SIZE_MAX)
-	{
-		if (startOff >= str.size())
-		{
-			if (done)
-				done = false;
-			return 0;
-		}
-		else
-			count = str.size() - startOff;
-	}
-	else if (startOff + count > str.size())
-	{
-		if (done)
-			done = false;
-		return 0;
-	}
-
-	constexpr const int sizeBuf = 30;
-	T resNum = 0;
-	char tmpStr[sizeBuf]{};
-
-	uint8_t countSymb = 0;
-	for (auto ptr = str.data()+ startOff, end = ptr + count; ptr < end; ptr++)
-	{
-		if (isSymbolForNumber(*ptr))
-		{
-			tmpStr[countSymb] = *ptr;
-			++countSymb;
-			if (countSymb >= sizeBuf)
-			{
-				if (done)
-				{
-					done = false;
-					return resNum;
-				}
-			}
-		}
-	}
-
-	auto res = std::from_chars(tmpStr, tmpStr + countSymb, resNum);
-
-	if (done)
-	{
-		*done = res.ec == std::errc(0);
-	}
-
-	return resNum;
+	return (c > 41 && c < 58) || (c > 64 && c < 71)|| (c > 96 && c < 103);
 }
 
-
 template<class T>
-inline T UString::toNumber(size_t startOff, size_t count, bool* done) const
+inline std::enable_if_t<std::is_integral<T>::value, T>
+UString::toIntegral(size_t startOff, size_t count,uint8_t base, bool* done) const
 {
-	if (count == SIZE_MAX)
-	{
-		if (startOff >= size())
-		{
-			if (done)
-				done = false;
-			return 0;
-		}
-		else
-			count = size() - startOff;
-	}
-	else if (startOff+ count > size())
+	if (startOff > size())
 	{
 		if (done)
 			done = false;
-		return 0;
+		return T(0);
 	}
+
+	if (count > size() - startOff)
+		count = size() - startOff;
+
 
 	constexpr const int sizeBuf = 30;
 	T resNum = 0;
@@ -247,7 +191,54 @@ inline T UString::toNumber(size_t startOff, size_t count, bool* done) const
 	uint8_t countSymb = 0;
 	for (auto ptr = data() + startOff, end = ptr + count; ptr < end; ptr++)
 	{
-		if (isSymbolForNumber(*ptr))
+		if (isValidSymbolForNum(*ptr))
+		{
+			tmpStr[countSymb] = *ptr;
+			++countSymb;
+			if (countSymb >= sizeBuf)
+			{
+				if (done)
+				{
+					done = false;
+					return resNum;
+				}
+			}
+		}
+	}
+
+	auto res = std::from_chars(tmpStr, tmpStr + countSymb, resNum, base);
+
+	if (done)
+	{
+		*done = res.ec == std::errc(0);
+	}
+
+	return resNum;
+}
+
+template<class T>
+inline std::enable_if_t<std::is_floating_point<T>::value, T>
+UString::toFloatingPoint(size_t startOff, size_t count, bool* done) const
+{
+	if (startOff > size())
+	{
+		if (done)
+			done = false;
+		return T(0);
+	}
+
+	if (count > size() - startOff)
+		count = size() - startOff;
+
+
+	constexpr const int sizeBuf = 30;
+	T resNum = 0;
+	char tmpStr[sizeBuf]{};
+
+	uint8_t countSymb = 0;
+	for (auto ptr = data() + startOff, end = ptr + count; ptr < end; ptr++)
+	{
+		if (isValidSymbolForNum(*ptr))
 		{
 			tmpStr[countSymb] = *ptr;
 			++countSymb;
@@ -272,8 +263,8 @@ inline T UString::toNumber(size_t startOff, size_t count, bool* done) const
 	return resNum;
 }
 
-template<class T>
-inline UString UString::fromIntegral(T num, int base)
+template <class T>
+inline std::enable_if_t<std::is_integral<T>::value, UString> UString::fromIntegral(T num, int base)
 {
 	char buf[25]{};
 	std::to_chars(buf, buf + 25, num, base);
@@ -281,19 +272,83 @@ inline UString UString::fromIntegral(T num, int base)
 	return UString(buf);
 }
 
-template<class T>
-inline UString UString::fromFloatingPoint(T num, std::chars_format format)
+template <class T>
+inline std::enable_if_t<std::is_floating_point<T>::value, UString> 
+UString::fromFloatingPoint(T num, uint8_t format,int8_t precision)
 {
-	char buf[25]{};
-	std::to_chars(buf, buf + 25, num, format);
+	char buf[40]{};
+	std::chars_format f;
+	switch (format)
+	{
+	case 'f':
+		f = std::chars_format::fixed;
+		break;
+	case 's':
+		f = std::chars_format::scientific;
+		break;
+	case 'h':
+		f = std::chars_format::hex;
+		break;
+	default:
+		f = std::chars_format::general;
+		break;
+	}
+
+	if(precision>=0)
+		std::to_chars(buf, buf + sizeof(buf), num, f, precision);
+	else
+		std::to_chars(buf, buf + sizeof(buf), num, f);
+
 	return UString(buf);
+}
+
+constexpr size_t UString::find(const UString& str, size_t off, CaseSens mode)const noexcept
+{
+	assert(size() >= off);
+
+	if (mode == CaseSens::Sensitive)
+	{
+		return src_str::find(str,off);
+	}
+	else if (str.size() <=size() - off)
+	{
+		auto& ctype = std::use_facet<std::ctype<wchar_t>>(std::locale::classic());
+
+		auto srcPtr = data() + off;
+		const auto srcEnd = srcPtr + size() - off - str.size() + 1;
+		const auto otherPtr = str.data();
+		const auto otherEnd = otherPtr + str.size();
+
+		size_t countEquals = 0;
+		auto c = ctype.tolower(*otherPtr);
+
+		while (srcPtr< srcEnd)
+		{
+			if (ctype.tolower(*srcPtr)== c)
+			{
+				auto tmpPtr0 = otherPtr + 1;
+				auto tmpPtr1 = srcPtr + 1;
+				while (tmpPtr0 < otherEnd)
+				{
+					if (ctype.tolower(*tmpPtr0) != ctype.tolower(*tmpPtr1))
+						break;
+					++tmpPtr0; ++tmpPtr1;
+				}
+
+				if(tmpPtr0== otherEnd)
+					return srcPtr - data();
+			}
+
+			srcPtr++;
+		}
+	}
+	return npos;
 }
 
 constexpr UString UString::substr(size_t off, size_t count)const
 {
 	return UString::fromWString(src_str::substr(off, count));
 }
-
 
 constexpr std::vector<UString> UString::split(const UString& separator, CaseSens mode,bool saveEmpty)const
 {
@@ -483,6 +538,68 @@ constexpr bool UString::ends_with(const char* valPtr, CaseSens mode)const noexce
 		}
 	}
 	return true;
+}
+
+constexpr size_t UString::count(const UString& subStr, CaseSens mode)const noexcept
+{
+	size_t res = 0;
+	size_t off = 0;
+	size_t s1 = subStr.size();
+	auto end = size();
+
+	while (off < end)
+	{
+		off = find(subStr, off, mode);
+		if (off==npos)
+		{
+			break;
+		}
+		else
+		{
+			++res;
+			off += s1;
+		}
+	}
+
+	return res;
+}
+
+constexpr size_t UString::replace(const UString& before, const UString& after, CaseSens mode)
+{
+	size_t res = 0;
+	size_t off = 0;
+	size_t sizeBefore = before.size();
+	size_t sizeAfter = after.size();
+	int64_t delta = sizeBefore - sizeAfter;
+	auto end = size();
+
+	while (off < end)
+	{
+		off = find(before, off, mode);
+		if (off == npos)
+		{
+			break;
+		}
+		else
+		{
+			if (delta>0)
+			{
+				erase(off + sizeAfter, delta);
+			}
+			else if (delta < 0)
+			{
+				insert(off + sizeBefore,-delta);
+			}
+
+			for (size_t i = 0; i < sizeAfter; i++)
+				operator[](i + off) = after[i];
+
+			++res;
+			off += sizeAfter;
+		}
+	}
+
+	return res;
 }
 
 constexpr UString& UString::operator+=(const char* val)
