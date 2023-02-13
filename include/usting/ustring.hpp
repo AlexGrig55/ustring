@@ -14,16 +14,18 @@ class UString :protected std::wstring
 {
 	typedef std::wstring src_str;
 
-	static const std::ctype<wchar_t>& ctype;
+	inline static const std::ctype<wchar_t>& ctype= std::use_facet<std::ctype<wchar_t>>(std::locale::classic());
 
-	constexpr static bool isSymbolForNumber(wchar_t c);
+	constexpr static bool isValidSymbolForNum(wchar_t c) noexcept;
+	constexpr static size_t srtLen(const char* ptr) noexcept;
+
 public:
 	UString() = default;
-	constexpr UString(uint32_t size, char ch = ' ') :src_str(size, ch) {}
+	explicit constexpr UString(uint32_t size, char ch = ' ') :src_str(size, ch) {}
 	constexpr UString(const char* str, size_t count);
 	constexpr UString(const char* startPtr, const char* endPtr) :
-		UString(startPtr, std::string_view(startPtr, endPtr).size()) {}
-	constexpr UString(const char* str) : UString(str, std::string_view(str).size()) {}
+		UString(startPtr, srtLen(startPtr)) {}
+	constexpr UString(const char* str) : UString(str, srtLen(str)) {}
 
 	constexpr UString(const UString& other) : src_str(other) {}
 	constexpr UString(UString&& other)noexcept : src_str(std::move(other)) {}
@@ -82,7 +84,12 @@ public:
 	constexpr bool operator!=(const char* val)const noexcept { return !operator==(val); }
 
 	constexpr void pop_front() { src_str::erase(0, 1); }
+
+	constexpr size_t find(char c, size_t off = 0, CaseSens mode = CaseSens::Sensitive)const noexcept;
 	constexpr size_t find(const UString& str, size_t off = 0, CaseSens mode = CaseSens::Sensitive)const noexcept;
+	constexpr size_t rfind(char c, size_t off = 0, CaseSens mode = CaseSens::Sensitive)const noexcept;
+	constexpr size_t rfind(const UString& str, size_t off = 0, CaseSens mode = CaseSens::Sensitive)const noexcept;
+
 	constexpr UString substr(size_t off, size_t count)const;
 	constexpr std::vector<UString> split(const UString& separator, CaseSens mode = CaseSens::Sensitive, bool saveEmpty = true)const;
 	constexpr void insert(size_t offset, const char* str);
@@ -97,6 +104,7 @@ public:
 	constexpr bool contains(const UString& str, CaseSens mode = CaseSens::Sensitive)const noexcept { return find(str,0,mode) != npos; }
 
 	constexpr size_t count(const UString& subStr, CaseSens mode = CaseSens::Sensitive)const noexcept;
+	constexpr size_t count(const char c, CaseSens mode = CaseSens::Sensitive)const noexcept;
 
 	constexpr size_t replace(const UString& before, const UString& after, CaseSens mode = CaseSens::Sensitive);
 
@@ -156,8 +164,6 @@ public:
 	static bool compare(const UString& str0, const UString& str1, CaseSens caseSence = CaseSens::Sensitive) noexcept;
 };
 
-const std::ctype<wchar_t>& UString::ctype = std::use_facet<std::ctype<wchar_t>>(std::locale::classic());
-
 constexpr UString::UString(const char* str,size_t count)
 {
 	resize(count);
@@ -168,9 +174,17 @@ constexpr UString::UString(const char* str,size_t count)
 	}
 }
 
-constexpr bool isValidSymbolForNum(wchar_t c)
+constexpr bool UString::isValidSymbolForNum(wchar_t c)noexcept
 {
 	return (c > 41 && c < 58) || (c > 64 && c < 71)|| (c > 96 && c < 103);
+}
+
+constexpr size_t UString::srtLen(const char* ptr) noexcept
+{
+	auto auxilPtr = ptr;
+	while (*auxilPtr != 0)
+		++auxilPtr;
+	return auxilPtr - ptr;
 }
 
 template<class T>
@@ -306,8 +320,37 @@ UString::fromFloatingPoint(T num, uint8_t format,int8_t precision)
 	return UString(buf);
 }
 
+constexpr size_t  UString::find(char c, size_t off, CaseSens mode)const noexcept
+{
+	assert(size() >= off);
+
+	if (mode == CaseSens::Sensitive)
+	{
+		return src_str::find(c, off);
+	}
+	else if (1 <= size() - off)
+	{
+		auto srcPtr = data() + off;
+		const auto srcEnd = srcPtr + size();
+
+		auto forCompare = ctype.tolower(c);
+
+		while (srcPtr < srcEnd)
+		{
+			if (ctype.tolower(*srcPtr) == forCompare)
+				return srcPtr - data();
+
+			srcPtr++;
+		}
+	}
+	return npos;
+}
+
 constexpr size_t UString::find(const UString& str, size_t off, CaseSens mode)const noexcept
 {
+	if (str.size() == 0)
+		return npos;
+
 	assert(size() >= off);
 
 	if (mode == CaseSens::Sensitive)
@@ -321,7 +364,6 @@ constexpr size_t UString::find(const UString& str, size_t off, CaseSens mode)con
 		const auto otherPtr = str.data();
 		const auto otherEnd = otherPtr + str.size();
 
-		size_t countEquals = 0;
 		auto c = ctype.tolower(*otherPtr);
 
 		while (srcPtr< srcEnd)
@@ -344,6 +386,103 @@ constexpr size_t UString::find(const UString& str, size_t off, CaseSens mode)con
 			srcPtr++;
 		}
 	}
+	return npos;
+}
+
+constexpr size_t UString::rfind(char c, size_t off, CaseSens mode)const noexcept
+{
+	assert(size() >= off);
+	
+	auto srcPtr = data() + size() - 1;
+	const auto srcEnd = data() + off - 1;
+
+	if (mode == CaseSens::Sensitive)
+	{
+		while (srcPtr > srcEnd)
+		{
+			if (*srcPtr == c)
+				return srcPtr - data();
+
+			--srcPtr;
+		}
+	}
+	else
+	{
+		auto forCompare = ctype.tolower(c);
+		while (srcPtr > srcEnd)
+		{
+			if (ctype.tolower(*srcPtr) == forCompare)
+				return srcPtr - data();
+
+			--srcPtr;
+		}
+	}
+	
+	return npos;
+}
+
+constexpr size_t UString::rfind(const UString& str, size_t off, CaseSens mode)const noexcept
+{
+	if (str.size() == 0)
+		return npos;
+
+	assert(size() >= off);
+
+	auto srcPtr = data() + size() - str.size();
+	const auto srcEnd = data() + off - 1;
+
+	const auto otherPtr = str.data();
+	const auto otherEnd = otherPtr + str.size();
+
+	if (mode == CaseSens::Sensitive)
+	{
+		while (srcPtr > srcEnd)
+		{
+			auto c = str.front();
+
+			if (*srcPtr == c)
+			{
+				auto tmpPtr0 = otherPtr + 1;
+				auto tmpPtr1 = srcPtr + 1;
+				while (tmpPtr0 < otherEnd)
+				{
+					if (*tmpPtr0 != *tmpPtr1)
+						break;
+					++tmpPtr0; ++tmpPtr1;
+				}
+
+				if (tmpPtr0 == otherEnd)
+					return srcPtr - data();
+			}
+
+			srcPtr++;
+		}
+	}
+	else
+	{
+		auto c = ctype.tolower(*otherPtr);
+
+		while (srcPtr > srcEnd)
+		{
+			if (ctype.tolower(*srcPtr) == c)
+			{
+				auto tmpPtr0 = otherPtr + 1;
+				auto tmpPtr1 = srcPtr + 1;
+				while (tmpPtr0 < otherEnd)
+				{
+					if (ctype.tolower(*tmpPtr0) != ctype.tolower(*tmpPtr1))
+						break;
+					++tmpPtr0; ++tmpPtr1;
+				}
+
+				if (tmpPtr0 == otherEnd)
+					return srcPtr - data();
+			}
+
+			srcPtr++;
+		}
+	}
+
 	return npos;
 }
 
@@ -556,6 +695,30 @@ constexpr size_t UString::count(const UString& subStr, CaseSens mode)const noexc
 	return res;
 }
 
+constexpr size_t UString::count(const char c, CaseSens mode)const noexcept
+{
+	size_t res = 0;
+	size_t off = 0;
+
+	auto end = size();
+
+	while (off < end)
+	{
+		off = find(c, off, mode);
+		if (off == npos)
+		{
+			break;
+		}
+		else
+		{
+			++res;
+			off += 1;
+		}
+	}
+
+	return res;
+}
+
 constexpr size_t UString::replace(const UString& before, const UString& after, CaseSens mode)
 {
 	size_t res = 0;
@@ -580,7 +743,7 @@ constexpr size_t UString::replace(const UString& before, const UString& after, C
 			}
 			else if (delta < 0)
 			{
-				insert(off + sizeBefore,-delta);
+				src_str::insert(begin() + off + sizeBefore, -delta, L' ');
 			}
 
 			for (size_t i = 0; i < sizeAfter; i++)
@@ -755,7 +918,6 @@ inline bool UString::compare(const UString& str0, const UString& str1, CaseSens 
 	default:
 		return false;
 	}
-
 }
 
 inline UString UString::fromString(std::string_view str, const std::locale& locale)
