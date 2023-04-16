@@ -61,10 +61,13 @@ public:
 	constexpr UString& operator=(UString&& val)noexcept { src_str::operator=(std::move(val)); return *this; }
 	constexpr UString& operator=(const UString& val) { src_str::operator=(val); return *this; }
 	constexpr UString& operator=(const char* val) { src_str::operator=(UString(val)); return *this; }
+	constexpr UString& operator=(const wchar_t* val) { src_str::operator+=(val); return *this; }
 
 	constexpr UString& operator+=(UString&& val) { src_str::operator+=(std::move(val)); return *this; }
 	constexpr UString& operator+=(const UString& val) { src_str::operator+=(val); return *this; }
 	constexpr UString& operator+=(const char* val);
+	constexpr UString& operator+=(const wchar_t* val) { src_str::operator+=(val); return *this; }
+	constexpr UString& operator+=(wchar_t val) { src_str::operator+=(val); return *this; }
 
 	constexpr UString operator+(UString&& val) const {
 		UString str; str.reserve(size() + val.size()); str = *this; str += val; return str;
@@ -73,6 +76,8 @@ public:
 		UString str; str.reserve(size() + val.size()); str = *this; str += val; return str;
 	}
 	constexpr UString operator+(const char* val) const { UString str(*this); str += val; return str; }
+	constexpr UString operator+(const wchar_t* val) const { UString str(*this); str += val; return str; }
+	constexpr UString operator+(wchar_t val) const { UString str(*this); str += val; return str; }
 
 	constexpr bool operator==(UString&& val) const noexcept;
 	constexpr bool operator!=(UString&& val) const noexcept { return !operator==(std::move(val)); }
@@ -81,6 +86,9 @@ public:
 
 	constexpr bool operator==(const char* val) const noexcept;
 	constexpr bool operator!=(const char* val)const noexcept { return !operator==(val); }
+
+	constexpr bool operator==(const wchar_t* val) const noexcept { return *((src_str*)this)==val; }
+	constexpr bool operator!=(const wchar_t* val)const noexcept { return !operator==(val); }
 
 	constexpr void popFront() { src_str::erase(0, 1); }
 
