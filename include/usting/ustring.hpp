@@ -1,4 +1,6 @@
-#pragma once
+#ifndef USTRING_HPP
+#define USTRING_HPP
+
 #include <assert.h>
 #include <string>
 #include <locale>
@@ -927,22 +929,53 @@ inline bool UString::compare(const UString& str0, const UString& str1, bool igno
 
 inline UString UString::fromString(std::string_view str, const std::locale& locale)
 {
-	////https://www.codeproject.com/Tips/196097/Converting-ANSI-to-Unicode-and-back
-	//	//return String(std::filesystem::_Convert_narrow_to_wide(__std_fs_code_page(), str).c_str());
-	//
-	//auto _size = str.size();
-	//auto ptr = str.data();
-	//UString res(_size, 0);
-	//
-	//std::use_facet<std::ctype<wchar_t> >(locale).widen(ptr, ptr + _size, res.data());
-	//
-	//auto pos = res.find(wchar_t(0), 0);
-	//if (pos != res.npos)
-	//	res.resize(pos);
-	//
-	//std::filesystem::_Convert_stringoid_with_locale_to_wide(str, locale)
+	//https://www.codeproject.com/Tips/196097/Converting-ANSI-to-Unicode-and-back
 
-	return fromWString(std::filesystem::_Convert_stringoid_with_locale_to_wide(str, locale));
+	const auto& _Facet = std::use_facet<std::codecvt<wchar_t, char, mbstate_t>>(locale);
+
+	std::wstring _Output(str.size(), L'\0'); // almost always sufficient
+
+	for (int count=0;;++count) {
+		mbstate_t _State{};
+		const char* const _From_begin = str.data();
+		const char* const _From_end = _From_begin + str.size();
+		const char* _From_next = nullptr;
+		wchar_t* const _To_begin = _Output.data();
+		wchar_t* const _To_end = _To_begin + _Output.size();
+		wchar_t* _To_next = nullptr;
+
+		const auto _Result = _Facet.in(_State, _From_begin, _From_end, _From_next, _To_begin, _To_end, _To_next);
+
+		if (_From_next < _From_begin || _From_next > _From_end || _To_next < _To_begin || _To_next > _To_end) {
+			std::_Throw_system_error(std::errc::invalid_argument);
+		}
+
+		switch (_Result) {
+		case std::codecvt_base::ok:
+			_Output.resize(static_cast<size_t>(_To_next - _To_begin));
+			return fromWString(_Output);
+
+		case std::codecvt_base::partial:
+			if (count>2)
+				std::_Throw_system_error(std::errc::invalid_argument);
+
+			// N4810 28.4.1.4.2 [locale.codecvt.virtuals]/5:
+			// "A return value of partial, if (from_next == from_end), indicates that either the
+			// destination sequence has not absorbed all the available destination elements,
+			// or that additional source elements are needed before another destination element can be produced."
+			if ((_From_next == _From_end && _To_next != _To_end) || _Output.size() > _Output.max_size() / 2) {
+				std::_Throw_system_error(std::errc::invalid_argument);
+			}
+
+			_Output.resize(_Output.size() * 2);
+			break; // out of switch, keep looping
+
+		//case codecvt_base::error:
+		//case codecvt_base::noconv:
+		default:
+			std::_Throw_system_error(std::errc::invalid_argument);
+		}
+	}
 }
 
 constexpr UString UString::fromLatin(std::string_view str)
@@ -1039,3 +1072,5 @@ constexpr bool operator==(const char* str0, const UString& str1)noexcept {return
 constexpr bool operator!=(const char* str0, const UString& str1)noexcept { return str1 != str0; }
 constexpr bool operator==(const char* str0, UString&& str1)noexcept { return str1 == str0; }
 constexpr bool operator!=(const char* str0, UString&& str1)noexcept { return str1 != str0; }
+
+#endif
